@@ -9,6 +9,7 @@ package net.java.sip.communicator.plugin.otr;
 import java.util.*;
 
 import org.bouncycastle.util.encoders.*;
+import org.bouncycastle.util.encoders.Base64;
 import org.jitsi.service.configuration.*;
 
 /**
