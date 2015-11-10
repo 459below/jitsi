@@ -1388,8 +1388,8 @@ public class OperationSetPersistentPresenceJabberImpl
         /**
          * Map containing all statuses for a userID.
          */
-        private final Map<String, TreeSet<Presence>> statuses =
-            new Hashtable<String, TreeSet<Presence>>();
+        private final Map<String, HashMap<String, Presence>> statuses =
+            new Hashtable<String, HashMap<String, Presence>>();
 
         /**
          * Not used here.
@@ -1485,6 +1485,8 @@ public class OperationSetPersistentPresenceJabberImpl
             {
                 String userID
                     = StringUtils.parseBareAddress(presence.getFrom());
+                String resource = StringUtils.parseResource(
+                    presence.getFrom());
 
                 OperationSetMultiUserChat mucOpSet =
                     parentProvider.getOperationSet(
@@ -1510,48 +1512,18 @@ public class OperationSetPersistentPresenceJabberImpl
                 // ordered by priority(higher first) and those with equal
                 // priorities order with the one that is most connected as
                 // first
-                TreeSet<Presence> userStats = statuses.get(userID);
+                HashMap<String, Presence> userStats = statuses.get(userID);
                 if(userStats == null)
                 {
-                    userStats = new TreeSet<Presence>(new Comparator<Presence>()
-                     {
-                        public int compare(Presence o1, Presence o2)
-                        {
-                            int res = o2.getPriority() - o1.getPriority();
-
-                            // if statuses are with same priorities
-                            // return which one is more available
-                            // counts the JabberStatusEnum order
-                            if(res == 0)
-                            {
-                                res = jabberStatusToPresenceStatus(
-                                        o2, parentProvider).getStatus()
-                                      - jabberStatusToPresenceStatus(
-                                            o1, parentProvider).getStatus();
-                            }
-
-                            return res;
-                        }
-                    });
+                    userStats = new HashMap<String, Presence>();
                     statuses.put(userID, userStats);
                 }
                 else
                 {
-                    String resource = StringUtils.parseResource(
-                            presence.getFrom());
-
                     // remove the status for this resource
                     // if we are online we will update its value with the new
                     // status
-                    for (Iterator<Presence> iter = userStats.iterator();
-                            iter.hasNext();)
-                    {
-                        Presence p = iter.next();
-
-                        if (StringUtils.parseResource(p.getFrom()).equals(
-                                resource))
-                            iter.remove();
-                    }
+                    userStats.remove(resource);
                 }
 
                 if(!jabberStatusToPresenceStatus(presence, parentProvider)
@@ -1560,7 +1532,7 @@ public class OperationSetPersistentPresenceJabberImpl
                                 .getJabberStatusEnum()
                                     .getStatus(JabberStatusEnum.OFFLINE)))
                 {
-                    userStats.add(presence);
+                    userStats.put(resource, presence);
                 }
 
                 Presence currentPresence;
@@ -1576,7 +1548,33 @@ public class OperationSetPersistentPresenceJabberImpl
                     statuses.remove(userID);
                 }
                 else
-                    currentPresence = userStats.first();
+                {
+                    List<Presence> sortedPresences = new ArrayList<Presence>(
+                        userStats.values()
+                        );
+                    Collections.sort(sortedPresences,
+                        new Comparator<Presence>()
+                    {
+                       public int compare(Presence o1, Presence o2)
+                       {
+                           int res = o2.getPriority() - o1.getPriority();
+
+                           // if statuses are with same priorities
+                           // return which one is more available
+                           // counts the JabberStatusEnum order
+                           if(res == 0)
+                           {
+                               res = jabberStatusToPresenceStatus(
+                                       o2, parentProvider).getStatus()
+                                     - jabberStatusToPresenceStatus(
+                                           o1, parentProvider).getStatus();
+                           }
+
+                           return res;
+                       }
+                   });
+                    currentPresence = sortedPresences.get(0);
+                }
 
                 ContactJabberImpl sourceContact
                     = ssContactList.findContactById(userID);
